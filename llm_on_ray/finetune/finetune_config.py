@@ -45,6 +45,7 @@ class LoraConfig(BaseModel):
 
 
 class General(BaseModel):
+    trainer_type: str = "general"
     base_model: str
     tokenizer_name: Optional[str] = None
     gaudi_config_name: Optional[str] = None
@@ -64,6 +65,7 @@ class General(BaseModel):
 
 
 class Dataset(BaseModel):
+    data_type: str = ""
     train_file: str
     validation_file: Optional[str]
     validation_split_percentage: int
@@ -71,6 +73,8 @@ class Dataset(BaseModel):
     group: bool = True
     block_size: int = 512
     shuffle: bool = False
+    pad_max: bool = False
+    max_prompt_length: int = 512
 
 
 class RayResourceConfig(BaseModel):
