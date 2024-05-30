@@ -90,8 +90,7 @@ def convert_to_training_args(cls, config: Dict):
         "do_train": True,
         "warmup_ratio": 0.03,
         "log_level": "info",
-        "save_total_limit": 10
-
+        "save_total_limit": 10,
     }
 
     # set attr do_eval
@@ -264,7 +263,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
                     instruction=instruction, response=response
                 )
-            print(rec)
             return rec
 
         dataset = dataset.map(
@@ -275,7 +273,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         column_names += [template.TEXT_COLUMN_NAME]
 
     def tokenize_function(examples):
-        print(examples[template.TEXT_COLUMN_NAME])
         return tokenizer(examples[template.TEXT_COLUMN_NAME], max_length=max_length)
 
     tokenized_dataset = dataset.map(
