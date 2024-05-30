@@ -66,7 +66,7 @@ class General(BaseModel):
 
     @validator("report_to")
     def check_report_to(cls, v: str):
-        assert v in ["none", "tensorboard"]
+        assert v in ["none", "wandb", "tensorboard"]
         return v
 
 
