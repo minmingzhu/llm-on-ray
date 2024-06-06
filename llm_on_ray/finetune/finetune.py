@@ -19,6 +19,8 @@
 import os
 import argparse
 import sys
+import re
+
 from typing import Any, Dict, Union, Optional
 
 from itertools import chain
@@ -40,7 +42,7 @@ from llm_on_ray import common
 from llm_on_ray.finetune import template
 from llm_on_ray.finetune.finetune_config import FinetuneConfig
 from importlib import util
-
+IGNORE_INDEX = -100
 
 def adapt_transformers_to_device(config: Dict):
     device = config["Training"]["device"]
@@ -209,76 +211,161 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     if isinstance(dataset, datasets.DatasetDict):
         column_names = dataset["train"].column_names
 
-    if column_names and template.TEXT_COLUMN_NAME not in column_names:
 
-        def prompt(rec):
-            instruction = rec["instruction"]
-            response = rec["response"]
-            context = rec.get("context")
-            if not instruction:
-                raise ValueError(f"Expected an instruction in: {rec}")
-            if not response:
-                raise ValueError(f"Expected a response in: {rec}")
-            if context:
-                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
-                    instruction=instruction, response=response, input=context
-                )
-            else:
-                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
-                    instruction=instruction, response=response
-                )
-            return rec
+    def prompt(rec):
+        instruction = rec["instruction"]
+        response = rec["response"]
+        context = rec.get("context")
+        if not instruction:
+            raise ValueError(f"Expected an instruction in: {rec}")
+        if not response:
+            raise ValueError(f"Expected a response in: {rec}")
+        if context:
+            rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
+                instruction=instruction, response=response, input=context
+            )
+        else:
+            rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
+                instruction=instruction, response=response
+            )
+        return rec
 
-        def prompt_SlimOrca(rec):
-            default_system = "You are a helpful, respectful and honest assistant."
-            examples = {}
-            conv = rec["conversations"]
+    def prompt_SlimOrca(examples, tokenizer):
+        print("prompt_SlimOrca")
+        print(examples)
+        system = "### System:\n"
+        default_system = "You are a helpful, respectful and honest assistant."
+        user = "### User:\n"
+        assistant = "### Assistant:\n"
+        end = tokenizer.eos_token
+        prompts = {}
+        prompts["prompt_sources"] = []
+        prompts["prompt_targets"] = []
+        for conv in examples:
+            conv = conv["conversations"]
+
             # system
             if conv[0]["from"] != "system":
-                examples["system"] = default_system
+                prompt = system + default_system + end + '\n'
                 start = 0
             elif conv[0]["from"] == "system" and conv[0]["value"] == "":
-                examples[conv[0]["from"]] = default_system
+                prompt = system + default_system + end + '\n'
                 start = 1
             else:
-                examples[conv[0]["from"]] = conv[0]["value"]
+                prompt = system + conv[0]["value"] + end + '\n'
                 start = 1
 
             for j in range(start, len(conv) - 1, 2):
-                examples[conv[j]["from"]] = conv[j]["value"]
-                examples[conv[j + 1]["from"]] = conv[j + 1]["value"]
-            instruction = (examples["system"],)
-            response = (examples["gpt"],)
-            input = (examples["human"],)
-            if not instruction:
-                raise ValueError(f"Expected an instruction in: {rec}")
-            if not response:
-                raise ValueError(f"Expected a response in: {rec}")
+                u = conv[j]["value"]
+                ass = conv[j + 1]["value"]
+                prompt = prompt + user + u + end + '\n' + assistant
+                response = ass + end
+                prompts["prompt_sources"].append(prompt)
+                prompts["prompt_targets"].append(response)
 
-            if input:
-                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
-                    instruction=instruction, response=response, input=input
-                )
-            else:
-                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
-                    instruction=instruction, response=response
-                )
-            return rec
+                prompt += response + '\n'
 
-        dataset = dataset.map(
-            prompt_SlimOrca,
-            load_from_cache_file=False,
-            desc="Prompt",
-        )
-        column_names += [template.TEXT_COLUMN_NAME]
+        return prompts
 
+    # dataset = dataset.map(
+    #     prompt_SlimOrca,
+    #     remove_columns=column_names,
+    #     load_from_cache_file=False,
+    #     desc="Prompt",
+    # )
+    print("before")
+    print(dataset)
+
+    for key in dataset:
+        print(key)
+        prompts = prompt_SlimOrca(dataset[key], tokenizer)
+        dataset[key] = datasets.Dataset.from_dict(prompts)
+    print("after")
+    print(dataset)
     def tokenize_function(examples):
+        print(examples[template.TEXT_COLUMN_NAME])
         return tokenizer(examples[template.TEXT_COLUMN_NAME], max_length=max_length)
 
+    def truncate_sequences(sequences, max_length):
+        words_to_cut = sum(list(map(len, sequences))) - max_length
+        if words_to_cut <= 0:
+            return sequences
+
+        while words_to_cut > 0 and len(sequences) > 0:
+            words_to_cut -= len(sequences[0])
+            sequences = sequences[1:]
+
+        return sequences
+    def preprocess_slimorca_function(examples):
+        print("preprocess_slimorca_function")
+        max_seq_length = 512
+        max_source_length = 384
+        system = "### System:\n"
+        default_system = "You are a helpful, respectful and honest assistant."
+        user = "### User:\n"
+        assistant = "### Assistant:\n"
+        end = tokenizer.eos_token
+        assistant_tokens = tokenizer.tokenize(assistant)
+
+        instructions = [q.strip() for q in examples["prompt_sources"]]
+        responses = [q.strip() for q in examples["prompt_targets"]]
+
+        examples["input_ids"] = []
+        examples["labels"] = []
+        examples["attention_mask"] = []
+
+        for instruction, response in zip(instructions, responses):
+            header = re.findall(r"### System.*?{}".format(end), instruction, re.DOTALL)[0]
+            convs = re.findall(r"### User.*?{0}|### Assistant.*?{0}".format(end), instruction, re.DOTALL)
+            convs_tokens = [
+                tokenizer.tokenize(conv) + tokenizer.tokenize("\n")
+                for conv in convs
+            ]
+            header_tokens = tokenizer.tokenize(header) + tokenizer.tokenize("\n")
+
+            max_input = max_source_length - len(header_tokens) - len(assistant_tokens)
+
+            truncated_convs = truncate_sequences(convs_tokens,
+                    max_input)
+
+            if len(truncated_convs) == 0:
+                truncated_convs = [convs_tokens[-1][:max_input - 3] + convs_tokens[-1][-3:]]
+
+            prompt_tokens = [header_tokens] + truncated_convs + [assistant_tokens]
+            prompt_ids = [tokenizer.convert_tokens_to_ids(prompt_token) for prompt_token in prompt_tokens]
+            prompt_ids = list(chain(*prompt_ids))
+
+            resp_ids = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(response.strip()))
+            # keep last and eos_id
+            max_resp = max_seq_length - len(prompt_ids) - 1
+            if len(resp_ids) > max_resp:
+                resp_ids = resp_ids[:max_resp - 1] + resp_ids[-1:]
+
+            input_ids = prompt_ids + resp_ids  + [tokenizer.eos_token_id]
+            labels = [IGNORE_INDEX] * len(prompt_ids) + resp_ids + [tokenizer.eos_token_id]
+
+
+            # padding
+            input_len = len(input_ids)
+            pad_len = max_seq_length - input_len
+            input_ids = input_ids + [tokenizer.eos_token_id] * pad_len
+            labels = labels + [IGNORE_INDEX] * pad_len
+            attention_mask = [1] * input_len + [0] * pad_len
+
+            assert len(input_ids) == max_seq_length
+            assert len(prompt_ids) <= max_source_length
+            assert len(labels) == len(input_ids) == len(attention_mask)
+
+            examples["input_ids"].append(torch.tensor(input_ids))
+            examples["labels"].append(labels)
+            examples["attention_mask"].append(attention_mask)
+
+        return examples
+
     tokenized_dataset = dataset.map(
-        tokenize_function,
-        remove_columns=column_names,
+        preprocess_slimorca_function,
         load_from_cache_file=False,
+        batched=True,
         desc="Tokenize dataset",
     )
 
@@ -314,6 +401,7 @@ def prepare_data_collator(config: Dict, tokenizer):
     return transformers.DataCollatorForLanguageModeling(
         tokenizer=tokenizer, mlm=False, return_tensors="pt", pad_to_multiple_of=8
     )
+
 
 
 def load_model(config: Dict):
