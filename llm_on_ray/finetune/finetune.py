@@ -42,7 +42,9 @@ from llm_on_ray import common
 from llm_on_ray.finetune import template
 from llm_on_ray.finetune.finetune_config import FinetuneConfig
 from importlib import util
+
 IGNORE_INDEX = -100
+
 
 def adapt_transformers_to_device(config: Dict):
     device = config["Training"]["device"]
@@ -206,11 +208,10 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     tokenizer.pad_token = tokenizer.eos_token
 
     if isinstance(dataset, datasets.Dataset):
-        column_names = dataset.column_names
+        pass
 
     if isinstance(dataset, datasets.DatasetDict):
-        column_names = dataset["train"].column_names
-
+        dataset["train"].column_names
 
     def prompt(rec):
         instruction = rec["instruction"]
@@ -246,24 +247,24 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
             # system
             if conv[0]["from"] != "system":
-                prompt = system + default_system + end + '\n'
+                prompt = system + default_system + end + "\n"
                 start = 0
             elif conv[0]["from"] == "system" and conv[0]["value"] == "":
-                prompt = system + default_system + end + '\n'
+                prompt = system + default_system + end + "\n"
                 start = 1
             else:
-                prompt = system + conv[0]["value"] + end + '\n'
+                prompt = system + conv[0]["value"] + end + "\n"
                 start = 1
 
             for j in range(start, len(conv) - 1, 2):
                 u = conv[j]["value"]
                 ass = conv[j + 1]["value"]
-                prompt = prompt + user + u + end + '\n' + assistant
+                prompt = prompt + user + u + end + "\n" + assistant
                 response = ass + end
                 prompts["prompt_sources"].append(prompt)
                 prompts["prompt_targets"].append(response)
 
-                prompt += response + '\n'
+                prompt += response + "\n"
 
         return prompts
 
@@ -282,6 +283,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         dataset[key] = datasets.Dataset.from_dict(prompts)
     print("after")
     print(dataset)
+
     def tokenize_function(examples):
         print(examples[template.TEXT_COLUMN_NAME])
         return tokenizer(examples[template.TEXT_COLUMN_NAME], max_length=max_length)
@@ -296,13 +298,11 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             sequences = sequences[1:]
 
         return sequences
+
     def preprocess_slimorca_function(examples):
         print("preprocess_slimorca_function")
         max_seq_length = 512
         max_source_length = 384
-        system = "### System:\n"
-        default_system = "You are a helpful, respectful and honest assistant."
-        user = "### User:\n"
         assistant = "### Assistant:\n"
         end = tokenizer.eos_token
         assistant_tokens = tokenizer.tokenize(assistant)
@@ -316,34 +316,33 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         for instruction, response in zip(instructions, responses):
             header = re.findall(r"### System.*?{}".format(end), instruction, re.DOTALL)[0]
-            convs = re.findall(r"### User.*?{0}|### Assistant.*?{0}".format(end), instruction, re.DOTALL)
-            convs_tokens = [
-                tokenizer.tokenize(conv) + tokenizer.tokenize("\n")
-                for conv in convs
-            ]
+            convs = re.findall(
+                r"### User.*?{0}|### Assistant.*?{0}".format(end), instruction, re.DOTALL
+            )
+            convs_tokens = [tokenizer.tokenize(conv) + tokenizer.tokenize("\n") for conv in convs]
             header_tokens = tokenizer.tokenize(header) + tokenizer.tokenize("\n")
 
             max_input = max_source_length - len(header_tokens) - len(assistant_tokens)
 
-            truncated_convs = truncate_sequences(convs_tokens,
-                    max_input)
+            truncated_convs = truncate_sequences(convs_tokens, max_input)
 
             if len(truncated_convs) == 0:
-                truncated_convs = [convs_tokens[-1][:max_input - 3] + convs_tokens[-1][-3:]]
+                truncated_convs = [convs_tokens[-1][: max_input - 3] + convs_tokens[-1][-3:]]
 
             prompt_tokens = [header_tokens] + truncated_convs + [assistant_tokens]
-            prompt_ids = [tokenizer.convert_tokens_to_ids(prompt_token) for prompt_token in prompt_tokens]
+            prompt_ids = [
+                tokenizer.convert_tokens_to_ids(prompt_token) for prompt_token in prompt_tokens
+            ]
             prompt_ids = list(chain(*prompt_ids))
 
             resp_ids = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(response.strip()))
             # keep last and eos_id
             max_resp = max_seq_length - len(prompt_ids) - 1
             if len(resp_ids) > max_resp:
-                resp_ids = resp_ids[:max_resp - 1] + resp_ids[-1:]
+                resp_ids = resp_ids[: max_resp - 1] + resp_ids[-1:]
 
-            input_ids = prompt_ids + resp_ids  + [tokenizer.eos_token_id]
+            input_ids = prompt_ids + resp_ids + [tokenizer.eos_token_id]
             labels = [IGNORE_INDEX] * len(prompt_ids) + resp_ids + [tokenizer.eos_token_id]
-
 
             # padding
             input_len = len(input_ids)
@@ -401,7 +400,6 @@ def prepare_data_collator(config: Dict, tokenizer):
     return transformers.DataCollatorForLanguageModeling(
         tokenizer=tokenizer, mlm=False, return_tensors="pt", pad_to_multiple_of=8
     )
-
 
 
 def load_model(config: Dict):
