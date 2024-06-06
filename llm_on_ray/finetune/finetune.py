@@ -232,8 +232,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return rec
 
     def prompt_SlimOrca(examples, tokenizer):
-        print("prompt_SlimOrca")
-        print(examples)
         system = "### System:\n"
         default_system = "You are a helpful, respectful and honest assistant."
         user = "### User:\n"
@@ -301,8 +299,8 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
     def preprocess_slimorca_function(examples):
         print("preprocess_slimorca_function")
-        max_seq_length = 512
-        max_source_length = 384
+        max_seq_length = 1024
+        max_source_length = 2560
         assistant = "### Assistant:\n"
         end = tokenizer.eos_token
         assistant_tokens = tokenizer.tokenize(assistant)
