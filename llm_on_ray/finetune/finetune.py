@@ -208,10 +208,10 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     tokenizer.pad_token = tokenizer.eos_token
 
     if isinstance(dataset, datasets.Dataset):
-        pass
+        column_names = dataset.column_names
 
     if isinstance(dataset, datasets.DatasetDict):
-        dataset["train"].column_names
+        column_names = dataset["train"].column_names
 
     def prompt(rec):
         instruction = rec["instruction"]
@@ -276,7 +276,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print(dataset)
 
     for key in dataset:
-        print(key)
         prompts = prompt_SlimOrca(dataset[key], tokenizer)
         dataset[key] = datasets.Dataset.from_dict(prompts)
     print("after")
@@ -298,7 +297,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return sequences
 
     def preprocess_slimorca_function(examples):
-        print("preprocess_slimorca_function")
         max_seq_length = 2560
         max_source_length = 1024
         assistant = "### Assistant:\n"
@@ -359,13 +357,15 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         return examples
 
+    column_names = list(dataset["train"].features)
+
     tokenized_dataset = dataset.map(
         preprocess_slimorca_function,
         load_from_cache_file=False,
         batched=True,
+        remove_columns=column_names,
         desc="Tokenize dataset",
     )
-
     if group:
 
         def group_texts(examples):
@@ -381,7 +381,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
                 for k, t in concatenated_examples.items()
             }
-            result["labels"] = result["input_ids"].copy()
+            # result["labels"] = result["input_ids"].copy()
             return result
 
         tokenized_dataset = tokenized_dataset.map(
@@ -390,7 +390,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             load_from_cache_file=False,
             desc=f"Grouping texts in chunks of {block_size}",
         )
-
+    print(tokenized_dataset)
     return tokenized_dataset
 
 
@@ -482,6 +482,9 @@ def train_func(config: Dict[str, Any]):
     dataset = load_dataset(config)
 
     tokenized_dataset = tokenize_dataset(config, tokenizer, dataset)
+    print("tokenized_dataset")
+
+    print(tokenized_dataset)
 
     data_collator = prepare_data_collator(config, tokenizer)
 
