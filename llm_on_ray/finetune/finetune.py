@@ -28,6 +28,7 @@ from itertools import chain
 import torch
 import datasets
 import transformers
+import wandb
 
 from peft import get_peft_model, LoraConfig
 
@@ -203,8 +204,8 @@ def load_dataset(config: Dict):
 
 def tokenize_dataset(config: Dict, tokenizer, dataset):
     max_length = config["Dataset"].get("max_length", 512)
-    group = config["Dataset"].get("group", True)
-    block_size = config["Dataset"].get("block_size", 512)
+    config["Dataset"].get("group", True)
+    config["Dataset"].get("block_size", 512)
     tokenizer.pad_token = tokenizer.eos_token
 
     if isinstance(dataset, datasets.Dataset):
@@ -366,31 +367,31 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         remove_columns=column_names,
         desc="Tokenize dataset",
     )
-    if group:
-
-        def group_texts(examples):
-            # Concatenate all texts.
-            concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
-            total_length = len(concatenated_examples[list(examples.keys())[0]])
-            # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
-            # customize this part to your needs.
-            if total_length >= block_size:
-                total_length = (total_length // block_size) * block_size
-            # Split by chunks of max_len.
-            result = {
-                k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
-                for k, t in concatenated_examples.items()
-            }
-            # result["labels"] = result["input_ids"].copy()
-            return result
-
-        tokenized_dataset = tokenized_dataset.map(
-            group_texts,
-            batched=True,
-            load_from_cache_file=False,
-            desc=f"Grouping texts in chunks of {block_size}",
-        )
-    print(tokenized_dataset)
+    # if group:
+    #
+    #     def group_texts(examples):
+    #         # Concatenate all texts.
+    #         concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
+    #         total_length = len(concatenated_examples[list(examples.keys())[0]])
+    #         # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
+    #         # customize this part to your needs.
+    #         if total_length >= block_size:
+    #             total_length = (total_length // block_size) * block_size
+    #         # Split by chunks of max_len.
+    #         result = {
+    #             k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+    #             for k, t in concatenated_examples.items()
+    #         }
+    #         # result["labels"] = result["input_ids"].copy()
+    #         return result
+    #
+    #     tokenized_dataset = tokenized_dataset.map(
+    #         group_texts,
+    #         batched=True,
+    #         load_from_cache_file=False,
+    #         desc=f"Grouping texts in chunks of {block_size}",
+    #     )
+    # print(tokenized_dataset)
     return tokenized_dataset
 
 
@@ -530,6 +531,13 @@ def main(external_config=None):
         config = external_config
 
     config["cwd"] = os.getcwd()
+
+    wandb.init(
+        project="llm-on-ray-analysis",
+        name="mistral-deepspeed-lora",
+        tags=["baseline", "high-lr"],
+        group="lora",
+    )
 
     num_training_workers = config["Training"].get("num_training_workers")
     resources_per_worker = config["Training"].get("resources_per_worker")
