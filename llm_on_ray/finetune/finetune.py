@@ -204,8 +204,8 @@ def load_dataset(config: Dict):
 
 def tokenize_dataset(config: Dict, tokenizer, dataset):
     max_length = config["Dataset"].get("max_length", 512)
-    config["Dataset"].get("group", True)
-    config["Dataset"].get("block_size", 512)
+    group = config["Dataset"].get("group", True)
+    block_size = config["Dataset"].get("block_size", 512)
     tokenizer.pad_token = tokenizer.eos_token
 
     if isinstance(dataset, datasets.Dataset):
@@ -214,23 +214,69 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     if isinstance(dataset, datasets.DatasetDict):
         column_names = dataset["train"].column_names
 
-    def prompt(rec):
-        instruction = rec["instruction"]
-        response = rec["response"]
-        context = rec.get("context")
-        if not instruction:
-            raise ValueError(f"Expected an instruction in: {rec}")
-        if not response:
-            raise ValueError(f"Expected a response in: {rec}")
-        if context:
-            rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
-                instruction=instruction, response=response, input=context
-            )
-        else:
-            rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
-                instruction=instruction, response=response
-            )
-        return rec
+    if column_names and template.TEXT_COLUMN_NAME not in column_names:
+
+        def prompt_SlimOrca(rec):
+            print("prompt_SlimOrca")
+            default_system = "You are a helpful, respectful and honest assistant."
+            examples = {}
+            conv = rec["conversations"]
+            # system
+            if conv[0]["from"] != "system":
+                examples["system"] = default_system
+                start = 0
+            elif conv[0]["from"] == "system" and conv[0]["value"] == "":
+                examples[conv[0]["from"]] = default_system
+                start = 1
+            else:
+                examples[conv[0]["from"]] = conv[0]["value"]
+                start = 1
+
+            for j in range(start, len(conv) - 1, 2):
+                examples[conv[j]["from"]] = conv[j]["value"]
+                examples[conv[j + 1]["from"]] = conv[j + 1]["value"]
+            instruction = (examples["system"],)
+            response = (examples["gpt"],)
+            input = (examples["human"],)
+            if not instruction:
+                raise ValueError(f"Expected an instruction in: {rec}")
+            if not response:
+                raise ValueError(f"Expected a response in: {rec}")
+
+            if input:
+                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
+                    instruction=instruction, response=response, input=input
+                )
+            else:
+                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
+                    instruction=instruction, response=response
+                )
+            return rec
+
+        def prompt(rec):
+            instruction = rec["instruction"]
+            response = rec["response"]
+            context = rec.get("context")
+            if not instruction:
+                raise ValueError(f"Expected an instruction in: {rec}")
+            if not response:
+                raise ValueError(f"Expected a response in: {rec}")
+            if context:
+                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
+                    instruction=instruction, response=response, input=context
+                )
+            else:
+                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
+                    instruction=instruction, response=response
+                )
+            return rec
+
+        dataset = dataset.map(
+            prompt_SlimOrca,
+            load_from_cache_file=False,
+            desc="Prompt",
+        )
+        column_names += [template.TEXT_COLUMN_NAME]
 
     def prompt_SlimOrca(examples, tokenizer):
         system = "### System:\n"
@@ -267,24 +313,30 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         return prompts
 
-    # dataset = dataset.map(
-    #     prompt_SlimOrca,
-    #     remove_columns=column_names,
-    #     load_from_cache_file=False,
-    #     desc="Prompt",
-    # )
     print("before")
     print(dataset)
 
-    for key in dataset:
-        prompts = prompt_SlimOrca(dataset[key], tokenizer)
-        dataset[key] = datasets.Dataset.from_dict(prompts)
+    # for key in dataset:
+    #     prompts = prompt_SlimOrca(dataset[key], tokenizer)
+    #     dataset[key] = datasets.Dataset.from_dict(prompts)
+
     print("after")
     print(dataset)
 
     def tokenize_function(examples):
-        print(examples[template.TEXT_COLUMN_NAME])
-        return tokenizer(examples[template.TEXT_COLUMN_NAME], max_length=max_length)
+        # labels = [1, 0]
+        # encoding = tokenizer(examples[template.TEXT_COLUMN_NAME], padding=True, truncation=True, return_tensors='pt',
+        #           max_length=max_length)
+        # input_ids = encoding['input_ids']
+        # attention_mask = encoding['attention_mask']
+        #
+        # # Convert labels to a tensor
+        # labels = encoding['labels']
+        #
+        # print("Input IDs:", input_ids)
+        # print("Attention Mask:", attention_mask)
+        # print("Labels:", labels)
+        return tokenizer(examples[template.TEXT_COLUMN_NAME], padding=True, truncation=True, return_tensors='pt', max_length=max_length)
 
     def truncate_sequences(sequences, max_length):
         words_to_cut = sum(list(map(len, sequences))) - max_length
@@ -358,40 +410,35 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         return examples
 
-    column_names = list(dataset["train"].features)
+    # column_names = list(dataset["train"].features)
 
     tokenized_dataset = dataset.map(
-        preprocess_slimorca_function,
+        tokenize_function,
         load_from_cache_file=False,
         batched=True,
         remove_columns=column_names,
         desc="Tokenize dataset",
     )
-    # if group:
-    #
-    #     def group_texts(examples):
-    #         # Concatenate all texts.
-    #         concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
-    #         total_length = len(concatenated_examples[list(examples.keys())[0]])
-    #         # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
-    #         # customize this part to your needs.
-    #         if total_length >= block_size:
-    #             total_length = (total_length // block_size) * block_size
-    #         # Split by chunks of max_len.
-    #         result = {
-    #             k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
-    #             for k, t in concatenated_examples.items()
-    #         }
-    #         # result["labels"] = result["input_ids"].copy()
-    #         return result
-    #
-    #     tokenized_dataset = tokenized_dataset.map(
-    #         group_texts,
-    #         batched=True,
-    #         load_from_cache_file=False,
-    #         desc=f"Grouping texts in chunks of {block_size}",
-    #     )
-    # print(tokenized_dataset)
+
+    if group:
+        def concatenate_data(dataset, max_seq_length):
+            concatenated_dataset = {}
+            for column in dataset.features:
+                concatenated_data = [
+                    item for sample in dataset[column] for item in sample
+                ]
+                reshaped_data = [
+                    concatenated_data[i * max_seq_length: (i + 1) * max_seq_length]
+                    for i in range(len(concatenated_data) // max_seq_length)
+                ]
+                concatenated_dataset[column] = reshaped_data
+
+            concatenated_dataset["labels"] = concatenated_dataset["input_ids"].copy()
+            return datasets.Dataset.from_dict(concatenated_dataset)
+
+        tokenized_dataset["train"] = concatenate_data(
+            tokenized_dataset["train"], 2560
+        )
     return tokenized_dataset
 
 
@@ -483,10 +530,11 @@ def train_func(config: Dict[str, Any]):
     dataset = load_dataset(config)
 
     tokenized_dataset = tokenize_dataset(config, tokenizer, dataset)
-    print("tokenized_dataset")
-
+    print("train_func tokenized_dataset")
     print(tokenized_dataset)
-
+    if "train" not in tokenized_dataset:
+        raise ValueError("--do_train requires a train dataset")
+    print(tokenized_dataset["train"])
     data_collator = prepare_data_collator(config, tokenizer)
 
     model = load_model(config)
@@ -531,13 +579,6 @@ def main(external_config=None):
         config = external_config
 
     config["cwd"] = os.getcwd()
-
-    wandb.init(
-        project="llm-on-ray-analysis",
-        name="mistral-deepspeed-lora",
-        tags=["baseline", "high-lr"],
-        group="lora",
-    )
 
     num_training_workers = config["Training"].get("num_training_workers")
     resources_per_worker = config["Training"].get("resources_per_worker")
