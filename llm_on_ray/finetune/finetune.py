@@ -214,9 +214,12 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     if isinstance(dataset, datasets.DatasetDict):
         column_names = dataset["train"].column_names
 
+    print("before")
+    print(dataset)
+
     if column_names and template.TEXT_COLUMN_NAME not in column_names:
 
-        def prompt_SlimOrca(rec):
+        def prompt_slim_orca(rec):
             default_system = "You are a helpful, respectful and honest assistant."
             examples = {}
             conv = rec["conversations"]
@@ -271,7 +274,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             return rec
 
         dataset = dataset.map(
-            prompt_SlimOrca,
+            prompt_slim_orca,
             load_from_cache_file=False,
             desc="Prompt",
         )
@@ -311,9 +314,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 prompt += response + "\n"
 
         return prompts
-
-    print("before")
-    print(dataset)
 
     # for key in dataset:
     #     prompts = prompt_SlimOrca(dataset[key], tokenizer)
