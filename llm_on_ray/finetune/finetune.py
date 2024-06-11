@@ -355,8 +355,8 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return sequences
 
     def preprocess_slimorca_function(examples):
-        max_seq_length = 2560
-        max_source_length = 1024
+        max_seq_length = 512
+        max_source_length = 384
         assistant = "### Assistant:\n"
         end = tokenizer.eos_token
         assistant_tokens = tokenizer.tokenize(assistant)
@@ -440,7 +440,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             concatenated_dataset["labels"] = concatenated_dataset["input_ids"].copy()
             return datasets.Dataset.from_dict(concatenated_dataset)
 
-        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 2560)
+        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 512)
     return tokenized_dataset
 
 
