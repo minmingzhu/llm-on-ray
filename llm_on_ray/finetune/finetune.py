@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 import copy
+
 #!/usr/bin/env python
 
 import os
@@ -325,7 +326,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         return prompts
 
-
     def prompt_SlimOrca(examples, tokenizer):
         system = "### System:\n"
         default_system = "You are a helpful, respectful and honest assistant."
@@ -369,23 +369,16 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print(dataset)
 
     def tokenize_function(examples):
-        # labels = [1, 0]
-        # encoding = tokenizer(examples[template.TEXT_COLUMN_NAME], padding=True, truncation=True, return_tensors='pt',
-        #           max_length=max_length)
-        # input_ids = encoding['input_ids']
-        # attention_mask = encoding['attention_mask']
-        #
-        # # Convert labels to a tensor
-        # labels = encoding['labels']
-        #
-        # print("Input IDs:", input_ids)
-        # print("Attention Mask:", attention_mask)
-        # print("Labels:", labels)
+        keys = list(examples.data.keys())
+        if len(keys) != 2:
+            raise ValueError("Unsupported dataset format")
+
+        st = [s + t for s, t in zip(examples[keys[0]], examples[keys[1]])]
         return tokenizer(
-            examples[template.TEXT_COLUMN_NAME],
-            padding=True,
+            st,
+            padding=False,
             truncation=True,
-            return_tensors="pt",
+            return_tensors=None,
             max_length=max_length,
         )
 
@@ -406,7 +399,11 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         assistant = "### Response:\n"
         end = tokenizer.eos_token
         assistant_tokens = tokenizer.tokenize(assistant)
-        header = "Below is an instruction that describes a task. Write a response that appropriately completes the request." + end + "\n"
+        header = (
+            "Below is an instruction that describes a task. Write a response that appropriately completes the request."
+            + end
+            + "\n"
+        )
 
         instructions = [q.strip() for q in examples["prompt_sources"]]
         responses = [q.strip() for q in examples["prompt_targets"]]
@@ -501,8 +498,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             "attention_mask": examples_tokenized["attention_mask"],
         }
 
-
-
     def preprocess_slimorca_function(examples):
         max_seq_length = 512
         max_source_length = 384
@@ -567,7 +562,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     column_names = list(dataset["train"].features)
 
     tokenized_dataset = dataset.map(
-        preprocess_function,
+        tokenize_function,
         load_from_cache_file=False,
         batched=True,
         remove_columns=column_names,
