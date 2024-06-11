@@ -616,7 +616,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                     for i in range(len(concatenated_data) // max_seq_length)
                 ]
                 concatenated_dataset[column] = reshaped_data
-
+            concatenated_dataset["labels"] = copy.deepcopy(concatenated_dataset["input_ids"])
             return datasets.Dataset.from_dict(concatenated_dataset)
 
         tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 512)
