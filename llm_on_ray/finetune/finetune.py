@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import copy
 #!/usr/bin/env python
 
 import os
@@ -461,6 +461,47 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         return examples
 
+    def tokenize(prompt, add_eos_token=True):
+        results = tokenizer(
+            prompt,
+            truncation=True,
+            max_length=512,
+            padding=False,
+            return_tensors=None,
+        )
+        for i in range(len(results["input_ids"])):
+            if (
+                results["input_ids"][i][-1] != tokenizer.eos_token_id
+                and len(results["input_ids"][i]) < 512
+                and add_eos_token
+            ):
+                results["input_ids"][i].append(tokenizer.eos_token_id)
+                results["attention_mask"][i].append(1)
+
+        results["labels"] = copy.deepcopy(results["input_ids"])
+        results["input_id_len"] = [len(result) for result in results["input_ids"]]
+        return results
+
+    def preprocess_function(examples):
+        keys = list(examples.data.keys())
+        if len(keys) != 2:
+            raise ValueError("Unsupported dataset format")
+
+        st = [s + t for s, t in zip(examples[keys[0]], examples[keys[1]])]
+
+        examples_tokenized = tokenize(st)
+        input_ids = examples_tokenized["input_ids"]
+        labels = examples_tokenized["labels"]
+        sources_tokenized = tokenize(examples[keys[0]], add_eos_token=False)
+        for label, source_len in zip(labels, sources_tokenized["input_id_len"]):
+            label[:source_len] = [IGNORE_INDEX] * source_len
+        return {
+            "input_ids": input_ids,
+            "labels": labels,
+            "attention_mask": examples_tokenized["attention_mask"],
+        }
+
+
 
     def preprocess_slimorca_function(examples):
         max_seq_length = 512
@@ -526,7 +567,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     column_names = list(dataset["train"].features)
 
     tokenized_dataset = dataset.map(
-        preprocess_slim_orca_function,
+        preprocess_function,
         load_from_cache_file=False,
         batched=True,
         remove_columns=column_names,
