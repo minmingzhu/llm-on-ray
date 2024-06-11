@@ -205,7 +205,7 @@ def load_dataset(config: Dict):
 def tokenize_dataset(config: Dict, tokenizer, dataset):
     max_length = config["Dataset"].get("max_length", 512)
     group = config["Dataset"].get("group", True)
-    block_size = config["Dataset"].get("block_size", 512)
+    config["Dataset"].get("block_size", 512)
     tokenizer.pad_token = tokenizer.eos_token
 
     if isinstance(dataset, datasets.Dataset):
@@ -217,7 +217,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     if column_names and template.TEXT_COLUMN_NAME not in column_names:
 
         def prompt_SlimOrca(rec):
-            print("prompt_SlimOrca")
             default_system = "You are a helpful, respectful and honest assistant."
             examples = {}
             conv = rec["conversations"]
@@ -336,7 +335,13 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         # print("Input IDs:", input_ids)
         # print("Attention Mask:", attention_mask)
         # print("Labels:", labels)
-        return tokenizer(examples[template.TEXT_COLUMN_NAME], padding=True, truncation=True, return_tensors='pt', max_length=max_length)
+        return tokenizer(
+            examples[template.TEXT_COLUMN_NAME],
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+            max_length=max_length,
+        )
 
     def truncate_sequences(sequences, max_length):
         words_to_cut = sum(list(map(len, sequences))) - max_length
@@ -421,14 +426,13 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     )
 
     if group:
+
         def concatenate_data(dataset, max_seq_length):
             concatenated_dataset = {}
             for column in dataset.features:
-                concatenated_data = [
-                    item for sample in dataset[column] for item in sample
-                ]
+                concatenated_data = [item for sample in dataset[column] for item in sample]
                 reshaped_data = [
-                    concatenated_data[i * max_seq_length: (i + 1) * max_seq_length]
+                    concatenated_data[i * max_seq_length : (i + 1) * max_seq_length]
                     for i in range(len(concatenated_data) // max_seq_length)
                 ]
                 concatenated_dataset[column] = reshaped_data
@@ -436,9 +440,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             concatenated_dataset["labels"] = concatenated_dataset["input_ids"].copy()
             return datasets.Dataset.from_dict(concatenated_dataset)
 
-        tokenized_dataset["train"] = concatenate_data(
-            tokenized_dataset["train"], 2560
-        )
+        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 2560)
     return tokenized_dataset
 
 
