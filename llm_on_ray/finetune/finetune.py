@@ -309,7 +309,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             for j in range(start, len(conv) - 1, 2):
                 u = conv[j]["value"]
                 ass = conv[j + 1]["value"]
-                prompt = prompt + " Input:" + u + end + "\n" + assistant
+                prompt = prompt + "### Input:" + u + end + "\n" + assistant
                 response = ass + end
                 prompts["prompt_sources"].append(prompt)
                 prompts["prompt_targets"].append(response)
@@ -354,7 +354,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return prompts
 
     for key in dataset:
-        prompts = prompt_SlimOrca(dataset[key], tokenizer)
+        prompts = prompt_slim_orca(dataset[key], tokenizer)
         dataset[key] = datasets.Dataset.from_dict(prompts)
 
     print("after")
@@ -555,7 +555,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print("remove_columns")
     print(column_names)
     tokenized_dataset = dataset.map(
-        tokenize_function,
+        preprocess_slim_orca_function,
         load_from_cache_file=False,
         batched=True,
         remove_columns=column_names,
@@ -573,7 +573,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                     for i in range(len(concatenated_data) // max_seq_length)
                 ]
                 concatenated_dataset[column] = reshaped_data
-            concatenated_dataset["labels"] = copy.deepcopy(concatenated_dataset["input_ids"])
+            # concatenated_dataset["labels"] = copy.deepcopy(concatenated_dataset["input_ids"])
             return datasets.Dataset.from_dict(concatenated_dataset)
 
         tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 512)
