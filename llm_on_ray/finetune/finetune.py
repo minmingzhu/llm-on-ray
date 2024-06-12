@@ -354,7 +354,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return prompts
 
     for key in dataset:
-        prompts = prompt_slim_orca(dataset[key], tokenizer)
+        prompts = prompt_SlimOrca(dataset[key], tokenizer)
         dataset[key] = datasets.Dataset.from_dict(prompts)
 
     print("after")
