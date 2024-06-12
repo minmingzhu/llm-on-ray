@@ -218,44 +218,70 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print("before")
     print(dataset)
 
-    if column_names and template.TEXT_COLUMN_NAME not in column_names:
+    # if column_names and template.TEXT_COLUMN_NAME not in column_names:
+    #
+    #     def prompt_SlimOrca_to_alpaca(rec):
+    #         default_system = "You are a helpful, respectful and honest assistant."
+    #         examples = {}
+    #         conv = rec["conversations"]
+    #         # system
+    #         if conv[0]["from"] != "system":
+    #             examples["system"] = default_system
+    #             start = 0
+    #         elif conv[0]["from"] == "system" and conv[0]["value"] == "":
+    #             examples[conv[0]["from"]] = default_system
+    #             start = 1
+    #         else:
+    #             examples[conv[0]["from"]] = conv[0]["value"]
+    #             start = 1
+    #
+    #         for j in range(start, len(conv) - 1, 2):
+    #             examples[conv[j]["from"]] = conv[j]["value"]
+    #             examples[conv[j + 1]["from"]] = conv[j + 1]["value"]
+    #         instruction = (examples["system"],)
+    #         response = (examples["gpt"],)
+    #         input = (examples["human"],)
+    #         if not instruction:
+    #             raise ValueError(f"Expected an instruction in: {rec}")
+    #         if not response:
+    #             raise ValueError(f"Expected a response in: {rec}")
+    #
+    #         if input:
+    #             rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
+    #                 instruction=instruction, response=response, input=input
+    #             )
+    #         else:
+    #             rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
+    #                 instruction=instruction, response=response
+    #             )
+    #         return rec
+    #
+    #     def prompt(rec):
+    #         instruction = rec["instruction"]
+    #         response = rec["response"]
+    #         context = rec.get("context")
+    #         if not instruction:
+    #             raise ValueError(f"Expected an instruction in: {rec}")
+    #         if not response:
+    #             raise ValueError(f"Expected a response in: {rec}")
+    #         if context:
+    #             rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
+    #                 instruction=instruction, response=response, input=context
+    #             )
+    #         else:
+    #             rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
+    #                 instruction=instruction, response=response
+    #             )
+    #         return rec
 
-        def prompt_SlimOrca_to_alpaca(rec):
-            default_system = "You are a helpful, respectful and honest assistant."
-            examples = {}
-            conv = rec["conversations"]
-            # system
-            if conv[0]["from"] != "system":
-                examples["system"] = default_system
-                start = 0
-            elif conv[0]["from"] == "system" and conv[0]["value"] == "":
-                examples[conv[0]["from"]] = default_system
-                start = 1
-            else:
-                examples[conv[0]["from"]] = conv[0]["value"]
-                start = 1
+        # dataset = dataset.map(
+        #     prompt_SlimOrca_to_alpaca,
+        #     load_from_cache_file=False,
+        #     desc="Prompt",
+        # )
+        # column_names += [template.TEXT_COLUMN_NAME]
 
-            for j in range(start, len(conv) - 1, 2):
-                examples[conv[j]["from"]] = conv[j]["value"]
-                examples[conv[j + 1]["from"]] = conv[j + 1]["value"]
-            instruction = (examples["system"],)
-            response = (examples["gpt"],)
-            input = (examples["human"],)
-            if not instruction:
-                raise ValueError(f"Expected an instruction in: {rec}")
-            if not response:
-                raise ValueError(f"Expected a response in: {rec}")
-
-            if input:
-                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
-                    instruction=instruction, response=response, input=input
-                )
-            else:
-                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
-                    instruction=instruction, response=response
-                )
-            return rec
-
+    if column_names and "prompt_sources" not in column_names and "prompt_targets" not in column_names:
         def prompt_slim_orca(rec):
             INTRO_BLURB = "Below is an instruction that describes a task. Write a response that appropriately completes the request."
             default_system = "You are a helpful, respectful and honest assistant."
@@ -293,38 +319,22 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 prompt = INTRO_BLURB + user + instruction + " Input:" + input + end + "\n" + assistant
                 response = response + end
                 rec["prompt_sources"].append(prompt)
-                rec["prompt_sources"].append(response)
+                rec["prompt_targets"].append(response)
             else:
                 prompt = INTRO_BLURB + user + instruction + end + "\n" + assistant
                 response = response + end
                 rec["prompt_sources"].append(prompt)
-                rec["prompt_sources"].append(response)
-            return rec
-
-        def prompt(rec):
-            instruction = rec["instruction"]
-            response = rec["response"]
-            context = rec.get("context")
-            if not instruction:
-                raise ValueError(f"Expected an instruction in: {rec}")
-            if not response:
-                raise ValueError(f"Expected a response in: {rec}")
-            if context:
-                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
-                    instruction=instruction, response=response, input=context
-                )
-            else:
-                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
-                    instruction=instruction, response=response
-                )
+                rec["prompt_targets"].append(response)
             return rec
 
         dataset = dataset.map(
-            prompt_SlimOrca_to_alpaca,
+            prompt_slim_orca,
             load_from_cache_file=False,
             desc="Prompt",
         )
-        column_names += [template.TEXT_COLUMN_NAME]
+        column_names += ["prompt_sources"]
+        column_names += ["prompt_targets"]
+
 
     def prompt_slim_orca(examples, tokenizer):
         INTRO_BLURB = "Below is an instruction that describes a task. Write a response that appropriately completes the request."
@@ -398,20 +408,20 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return prompts
 
     # for key in dataset:
-    #     prompts = prompt_slim_orca(dataset[key], tokenizer)
+    #     prompts = prompt_SlimOrca(dataset[key], tokenizer)
     #     dataset[key] = datasets.Dataset.from_dict(prompts)
 
     print("after")
     print(dataset)
 
     def tokenize_function(examples):
-        # keys = list(examples.data.keys())
-        # if len(keys) != 2:
-        #     raise ValueError("Unsupported dataset format")
-        #
-        # st = [s + t for s, t in zip(examples[keys[0]], examples[keys[1]])]
+        keys = list(examples.data.keys())
+        if len(keys) != 2:
+            raise ValueError("Unsupported dataset format")
+
+        st = [s + t for s, t in zip(examples[keys[0]], examples[keys[1]])]
         return tokenizer(
-            examples[template.TEXT_COLUMN_NAME],
+            st,
             padding=False,
             truncation=True,
             return_tensors=None,
@@ -596,7 +606,8 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return examples
 
     # column_names = list(dataset["train"].features)
-    #
+    print("remove_columns")
+    print(column_names)
     tokenized_dataset = dataset.map(
         tokenize_function,
         load_from_cache_file=False,
