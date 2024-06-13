@@ -274,13 +274,12 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     #             )
     #         return rec
 
-        # dataset = dataset.map(
-        #     prompt_SlimOrca_to_alpaca,
-        #     load_from_cache_file=False,
-        #     desc="Prompt",
-        # )
-        # column_names += [template.TEXT_COLUMN_NAME]
-
+    # dataset = dataset.map(
+    #     prompt_SlimOrca_to_alpaca,
+    #     load_from_cache_file=False,
+    #     desc="Prompt",
+    # )
+    # column_names += [template.TEXT_COLUMN_NAME]
 
     def prompt_slim_orca(examples, tokenizer):
         INTRO_BLURB = "Below is an instruction that describes a task. Write a response that appropriately completes the request."
@@ -370,6 +369,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             st,
             padding=True,
             truncation=True,
+            return_tensors="pt",
             max_length=max_length,
         )
 
