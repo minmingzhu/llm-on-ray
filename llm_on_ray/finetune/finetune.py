@@ -365,13 +365,22 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             raise ValueError("Unsupported dataset format")
 
         st = [s + t for s, t in zip(examples[keys[0]], examples[keys[1]])]
-        return tokenizer(
+        result = tokenizer(
             st,
-            padding=True,
+            padding=False,
             truncation=True,
-            return_tensors="pt",
+            return_tensors=None,
             max_length=max_length,
         )
+        # padding
+        input_ids = result['input_ids']
+        input_len = len(input_ids)
+        pad_len = 512 - input_len
+        input_ids = input_ids + [tokenizer.eos_token_id] * pad_len
+        attention_mask = [1] * input_len + [0] * pad_len
+        result['input_ids'] = input_ids
+        result['attention_mask'] = attention_mask
+        return result
 
     def truncate_sequences(sequences, max_length):
         words_to_cut = sum(list(map(len, sequences))) - max_length
