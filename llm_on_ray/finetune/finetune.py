@@ -368,9 +368,8 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         st = [s + t for s, t in zip(examples[keys[0]], examples[keys[1]])]
         return tokenizer(
             st,
-            padding=False,
+            padding=True,
             truncation=True,
-            return_tensors=None,
             max_length=max_length,
         )
 
@@ -555,7 +554,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print("remove_columns")
     print(column_names)
     tokenized_dataset = dataset.map(
-        preprocess_slim_orca_function,
+        tokenize_function,
         load_from_cache_file=False,
         batched=True,
         remove_columns=column_names,
@@ -573,7 +572,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                     for i in range(len(concatenated_data) // max_seq_length)
                 ]
                 concatenated_dataset[column] = reshaped_data
-            # concatenated_dataset["labels"] = copy.deepcopy(concatenated_dataset["input_ids"])
+            concatenated_dataset["labels"] = copy.deepcopy(concatenated_dataset["input_ids"])
             return datasets.Dataset.from_dict(concatenated_dataset)
 
         tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 512)
