@@ -149,7 +149,7 @@ def load_tokenizer(config: Dict):
     else:
         tokenizer_name = config["General"]["base_model"]
     load_config = config["General"].get("config", {})
-    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name, **load_config)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name, padding_side="right", **load_config)
     return tokenizer
 
 
