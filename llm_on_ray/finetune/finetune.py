@@ -572,7 +572,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         return examples
 
-    # column_names = list(dataset["train"].features)
+    column_names = list(dataset["train"].features)
     print("remove_columns")
     print(column_names)
     tokenized_dataset = dataset.map(
