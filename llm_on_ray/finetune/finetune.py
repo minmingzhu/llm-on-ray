@@ -218,68 +218,68 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print("before")
     print(dataset)
 
-    if column_names and template.TEXT_COLUMN_NAME not in column_names:
+    # if column_names and template.TEXT_COLUMN_NAME not in column_names:
 
-        def prompt_SlimOrca_to_alpaca(rec):
-            default_system = "You are a helpful, respectful and honest assistant."
-            examples = {}
-            conv = rec["conversations"]
-            # system
-            if conv[0]["from"] != "system":
-                examples["system"] = default_system
-                start = 0
-            elif conv[0]["from"] == "system" and conv[0]["value"] == "":
-                examples[conv[0]["from"]] = default_system
-                start = 1
-            else:
-                examples[conv[0]["from"]] = conv[0]["value"]
-                start = 1
+        # def prompt_SlimOrca_to_alpaca(rec):
+        #     default_system = "You are a helpful, respectful and honest assistant."
+        #     examples = {}
+        #     conv = rec["conversations"]
+        #     # system
+        #     if conv[0]["from"] != "system":
+        #         examples["system"] = default_system
+        #         start = 0
+        #     elif conv[0]["from"] == "system" and conv[0]["value"] == "":
+        #         examples[conv[0]["from"]] = default_system
+        #         start = 1
+        #     else:
+        #         examples[conv[0]["from"]] = conv[0]["value"]
+        #         start = 1
+        #
+        #     for j in range(start, len(conv) - 1, 2):
+        #         examples[conv[j]["from"]] = conv[j]["value"]
+        #         examples[conv[j + 1]["from"]] = conv[j + 1]["value"]
+        #     instruction = (examples["system"],)
+        #     response = (examples["gpt"],)
+        #     input = (examples["human"],)
+        #     if not instruction:
+        #         raise ValueError(f"Expected an instruction in: {rec}")
+        #     if not response:
+        #         raise ValueError(f"Expected a response in: {rec}")
+        #
+        #     if input:
+        #         rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
+        #             instruction=instruction, response=response, input=input
+        #         )
+        #     else:
+        #         rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
+        #             instruction=instruction, response=response
+        #         )
+        #     return rec
+        #
+        # def prompt(rec):
+        #     instruction = rec["instruction"]
+        #     response = rec["response"]
+        #     context = rec.get("context")
+        #     if not instruction:
+        #         raise ValueError(f"Expected an instruction in: {rec}")
+        #     if not response:
+        #         raise ValueError(f"Expected a response in: {rec}")
+        #     if context:
+        #         rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
+        #             instruction=instruction, response=response, input=context
+        #         )
+        #     else:
+        #         rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
+        #             instruction=instruction, response=response
+        #         )
+        #     return rec
 
-            for j in range(start, len(conv) - 1, 2):
-                examples[conv[j]["from"]] = conv[j]["value"]
-                examples[conv[j + 1]["from"]] = conv[j + 1]["value"]
-            instruction = (examples["system"],)
-            response = (examples["gpt"],)
-            input = (examples["human"],)
-            if not instruction:
-                raise ValueError(f"Expected an instruction in: {rec}")
-            if not response:
-                raise ValueError(f"Expected a response in: {rec}")
-
-            if input:
-                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
-                    instruction=instruction, response=response, input=input
-                )
-            else:
-                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
-                    instruction=instruction, response=response
-                )
-            return rec
-
-        def prompt(rec):
-            instruction = rec["instruction"]
-            response = rec["response"]
-            context = rec.get("context")
-            if not instruction:
-                raise ValueError(f"Expected an instruction in: {rec}")
-            if not response:
-                raise ValueError(f"Expected a response in: {rec}")
-            if context:
-                rec["text"] = template.PROMPT_WITH_INPUT_FORMAT.format(
-                    instruction=instruction, response=response, input=context
-                )
-            else:
-                rec["text"] = template.PROMPT_NO_INPUT_FORMAT.format(
-                    instruction=instruction, response=response
-                )
-            return rec
-
-    dataset = dataset.map(
-        prompt_SlimOrca_to_alpaca,
-        load_from_cache_file=False,
-        desc="Prompt",
-    )
-    column_names += [template.TEXT_COLUMN_NAME]
+    # dataset = dataset.map(
+    #     prompt_SlimOrca_to_alpaca,
+    #     load_from_cache_file=False,
+    #     desc="Prompt",
+    # )
+    # column_names += [template.TEXT_COLUMN_NAME]
 
     def prompt_slim_orca(examples, tokenizer):
         INTRO_BLURB = "Below is an instruction that describes a task. Write a response that appropriately completes the request."
@@ -352,21 +352,48 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
         return prompts
 
-    # for key in dataset:
-    #     prompts = prompt_slim_orca(dataset[key], tokenizer)
-    #     dataset[key] = datasets.Dataset.from_dict(prompts)
+    for key in dataset:
+        prompts = prompt_slim_orca(dataset[key], tokenizer)
+        dataset[key] = datasets.Dataset.from_dict(prompts)
 
     print("after")
     print(dataset)
 
     def tokenize_function(examples):
-        return tokenizer(
-            examples[template.TEXT_COLUMN_NAME],
-            padding="max_length",
-            truncation=True,
-            return_tensors=None,
-            max_length=max_length,
-        )
+        max_seq_length = 512
+        mask_input = False
+        mask_response = True
+        keys = list(examples.data.keys())
+        if len(keys) != 2:
+            raise ValueError("Unsupported dataset format")
+
+        examples["input_ids"] = []
+        examples["labels"] = []
+        examples["attention_mask"] = []
+        for s, t in zip(examples[keys[0]], examples[keys[1]]):
+            results = tokenizer(s + t, padding=False, truncation=True, return_tensors=None, max_length=512)
+            input_ids = results["input_ids"][0] + [tokenizer.eos_token_id]
+            input_len = len(input_ids)
+            labels = copy.deepcopy(input_ids)
+            # mask input
+            if mask_input:
+                sources_tokenized = tokenizer(s, padding=False, truncation=True, return_tensors=None, max_length=512)
+                input_id_len = len(sources_tokenized["input_ids"])
+                labels[:input_id_len] = [IGNORE_INDEX] * input_id_len
+            if mask_response:
+                sources_tokenized = tokenizer(s, padding=False, truncation=True, return_tensors=None, max_length=512)
+                input_id_len = len(sources_tokenized["input_ids"])
+                labels[input_id_len + 1:len(labels) - 1] = [IGNORE_INDEX] * (len(labels) - 1 - input_id_len)
+            # padding
+            pad_len = max_seq_length - input_len
+            input_ids = input_ids + [tokenizer.eos_token_id] * pad_len
+            labels = labels + [IGNORE_INDEX] * pad_len
+            attention_mask = [1] * input_len + [0] * pad_len
+            examples["input_ids"].append(input_ids)
+            examples["labels"].append(labels)
+            examples["attention_mask"].append(attention_mask)
+
+        return examples
 
     def truncate_sequences(sequences, max_length):
         words_to_cut = sum(list(map(len, sequences))) - max_length
