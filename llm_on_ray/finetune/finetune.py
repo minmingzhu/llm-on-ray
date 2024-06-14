@@ -206,7 +206,7 @@ def load_dataset(config: Dict):
 def tokenize_dataset(config: Dict, tokenizer, dataset):
     max_length = config["Dataset"].get("max_length", 512)
     group = config["Dataset"].get("group", True)
-    config["Dataset"].get("block_size", 512)
+    block_size = config["Dataset"].get("block_size", 512)
     tokenizer.pad_token = tokenizer.eos_token
 
     if isinstance(dataset, datasets.Dataset):
@@ -558,19 +558,29 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
     if group:
 
-        def concatenate_data(dataset, max_seq_length):
-            concatenated_dataset = {}
-            for column in dataset.features:
-                concatenated_data = [item for sample in dataset[column] for item in sample]
-                reshaped_data = [
-                    concatenated_data[i * max_seq_length : (i + 1) * max_seq_length]
-                    for i in range(len(concatenated_data) // max_seq_length)
-                ]
-                concatenated_dataset[column] = reshaped_data
-            concatenated_dataset["labels"] = copy.deepcopy(concatenated_dataset["input_ids"])
-            return datasets.Dataset.from_dict(concatenated_dataset)
+        def group_texts(examples):
+            # Concatenate all texts.
+            concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
+            total_length = len(concatenated_examples[list(examples.keys())[0]])
+            # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
+            # customize this part to your needs.
+            if total_length >= block_size:
+                total_length = (total_length // block_size) * block_size
+            # Split by chunks of max_len.
+            result = {
+                k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+                for k, t in concatenated_examples.items()
+            }
+            result["labels"] = result["input_ids"].copy()
+            return result
 
-        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 512)
+        tokenized_dataset = tokenized_dataset.map(
+            group_texts,
+            batched=True,
+            load_from_cache_file=False,
+            desc=f"Grouping texts in chunks of {block_size}",
+        )
+
     return tokenized_dataset
 
 
