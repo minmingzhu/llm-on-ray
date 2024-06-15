@@ -372,7 +372,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         examples["attention_mask"] = []
         for s, t in zip(examples[keys[0]], examples[keys[1]]):
             results = tokenizer(s + t, padding=False, truncation=True, return_tensors=None, max_length=512)
-            input_ids = results["input_ids"][0] + [tokenizer.eos_token_id]
+            input_ids = results["input_ids"] + [tokenizer.eos_token_id]
             input_len = len(input_ids)
             labels = copy.deepcopy(input_ids)
             # mask input
