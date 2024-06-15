@@ -73,7 +73,7 @@ class Dataset(BaseModel):
     block_size: int = 512
     shuffle: bool = False
     pad_max: bool = False
-    max_prompt_length: int = 512
+    max_prompt_length: Optional[int] = None
 
 
 class RayResourceConfig(BaseModel):
