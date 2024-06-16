@@ -73,13 +73,19 @@ class Dataset(BaseModel):
     block_size: int = 512
     shuffle: bool = False
     pad_max: bool = False
-    max_prompt_length: Optional[int] = None
+    max_prompt_length: int = 512
 
 
 class RayResourceConfig(BaseModel):
     CPU: int
     GPU: int = 0
     HPU: int = 0
+
+
+class FinetuningModel(BaseModel):
+    dpo: Optional[bool] = False
+    ppo: Optional[bool] = False
+    sft: Optional[bool] = False
 
 
 class Training(BaseModel):
@@ -99,7 +105,7 @@ class Training(BaseModel):
     gradient_accumulation_steps: int = 1
     logging_steps: int = 10
     deepspeed_config_file: str = ""
-    use_dpo: Optional[bool] = False
+    FinetuningModel: FinetuningModel
     beta: Optional[float] = 0.1
 
     @validator("device")
