@@ -38,7 +38,6 @@ from pydantic_yaml import parse_yaml_raw_as
 
 from llm_on_ray import common
 from llm_on_ray.finetune import template
-
 from llm_on_ray.finetune.finetune_config import FinetuneConfig
 from importlib import util
 
@@ -307,7 +306,7 @@ def load_model(config: Dict):
     return model
 
 
-def get_trainer(config: Dict, model, tokenizer, tokenized_datasets, data_collator):
+def get_trainer(config: Dict, model, tokenizer, tokenized_dataset, data_collator):
     device = config["Training"]["device"]
     use_dpo = config["Training"]["FinetuningModel"].get("dpo", False)
     if device in ["cpu", "gpu"]:
@@ -318,14 +317,14 @@ def get_trainer(config: Dict, model, tokenizer, tokenized_datasets, data_collato
         if use_dpo:
             from llm_on_ray.finetune.dpo_funetuing import DPOFuneTuning
 
-            trainer = DPOFuneTuning(config).dpo_train(training_args, tokenized_datasets, tokenizer)
+            trainer = DPOFuneTuning(config).dpo_train(training_args, tokenized_dataset, tokenizer)
         else:
             trainer = Trainer(
                 model=model,
                 args=training_args,
-                train_dataset=tokenized_datasets["train"],
-                eval_dataset=tokenized_datasets["validation"]
-                if tokenized_datasets.get("validation") is not None
+                train_dataset=tokenized_dataset["train"],
+                eval_dataset=tokenized_dataset["validation"]
+                if tokenized_dataset.get("validation") is not None
                 else None,
                 tokenizer=tokenizer,
                 data_collator=data_collator,
@@ -351,16 +350,16 @@ def get_trainer(config: Dict, model, tokenizer, tokenized_datasets, data_collato
             from llm_on_ray.finetune.dpo_funetuing import GaudiDPOFuneTuning
 
             trainer = GaudiDPOFuneTuning(config).dpo_train(
-                training_args, gaudi_config, tokenized_datasets, tokenizer
+                training_args, gaudi_config, tokenized_dataset, tokenizer
             )
         else:
             trainer = GaudiTrainer(
                 model=model,
                 args=training_args,
                 gaudi_config=gaudi_config,
-                train_dataset=tokenized_datasets["train"],
-                eval_dataset=tokenized_datasets["validation"]
-                if tokenized_datasets.get("validation") is not None
+                train_dataset=tokenized_dataset["train"],
+                eval_dataset=tokenized_dataset["validation"]
+                if tokenized_dataset.get("validation") is not None
                 else None,
                 tokenizer=tokenizer,
                 data_collator=data_collator,
@@ -425,6 +424,7 @@ def main(external_config=None):
         config = external_config
 
     config["cwd"] = os.getcwd()
+
     num_training_workers = config["Training"].get("num_training_workers")
     resources_per_worker = config["Training"].get("resources_per_worker")
 
