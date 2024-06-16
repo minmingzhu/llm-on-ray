@@ -1,9 +1,8 @@
 General:
   base_model: mistralai/Mistral-7B-v0.1
   gpt_base_model: false
-  output_dir: /root/llm-on-ray/llm-on-ray/Mistral-7B-lora
-  save_strategy: steps
-  report_to: wandb
+  output_dir: /tmp/llm-ray/output
+  save_strategy: no
   config:
     trust_remote_code: false
     use_auth_token: null
@@ -17,25 +16,28 @@ General:
     - k_proj
     - v_proj
     - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+    - lm_head
   enable_gradient_checkpointing: false
 Dataset:
-  train_file: Open-Orca/SlimOrca
+  train_file: examples/data/sample_slimorca_data.jsonl
   validation_file: null
-  validation_split_percentage: 0
+  validation_split_percentage: 5
 Training:
   optimizer: adamw_torch
-  batch_size: 4
-  epochs: 2
-  learning_rate: 1.0e-04
-  lr_scheduler: cosine
+  batch_size: 2
+  epochs: 3
+  learning_rate: 1.0e-05
+  lr_scheduler: linear
   weight_decay: 0.0
   mixed_precision: bf16
-  device: hpu
+  device: cpu
   num_training_workers: 2
   resources_per_worker:
-    CPU: 1
-    HPU: 1
-  accelerate_mode: DEEPSPEED
-  gradient_accumulation_steps: 8
+    CPU: 32
+  accelerate_mode: DDP
+  gradient_accumulation_steps: 1
   logging_steps: 10
   deepspeed_config_file: llm_on_ray/finetune/ds_config.json
