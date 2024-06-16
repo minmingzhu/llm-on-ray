@@ -149,7 +149,7 @@ def load_tokenizer(config: Dict):
     else:
         tokenizer_name = config["General"]["base_model"]
     load_config = config["General"].get("config", {})
-    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name, padding_side="right", **load_config)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name, **load_config)
     return tokenizer
 
 
@@ -372,7 +372,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         examples["attention_mask"] = []
         for s, t in zip(examples[keys[0]], examples[keys[1]]):
             results = tokenizer(s + t, padding=False, truncation=True, return_tensors=None, max_length=512)
-            input_ids = results["input_ids"] + [tokenizer.eos_token_id]
+            input_ids = results["input_ids"]
             input_len = len(input_ids)
             labels = copy.deepcopy(input_ids)
             # mask input
@@ -383,13 +383,18 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
             if mask_response:
                 sources_tokenized = tokenizer(s, padding=False, truncation=True, return_tensors=None, max_length=512)
                 input_id_len = len(sources_tokenized["input_ids"])
-                labels[input_id_len + 1:len(labels) - 1] = [IGNORE_INDEX] * (len(labels) - 1 - input_id_len)
+
+                labels[input_id_len:input_len] = [IGNORE_INDEX] * (input_len - input_id_len)
 
             # padding
             pad_len = max_seq_length - input_len
             input_ids = input_ids + [tokenizer.eos_token_id] * pad_len
             labels = labels + [IGNORE_INDEX] * pad_len
             attention_mask = [1] * input_len + [0] * pad_len
+
+            assert len(input_ids) == max_seq_length
+            assert len(labels) == len(input_ids) == len(attention_mask)
+
             examples["input_ids"].append(input_ids)
             examples["labels"].append(labels)
             examples["attention_mask"].append(attention_mask)
@@ -583,12 +588,15 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         remove_columns=column_names,
         desc="Tokenize dataset",
     )
+    print("tokenized_dataset")
+    print(tokenized_dataset)
 
     if group:
 
         def concatenate_data(dataset, max_seq_length):
             concatenated_dataset = {}
             for column in dataset.features:
+                print(column)
                 concatenated_data = [item for sample in dataset[column] for item in sample]
                 reshaped_data = [
                     concatenated_data[i * max_seq_length : (i + 1) * max_seq_length]
@@ -597,7 +605,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 concatenated_dataset[column] = reshaped_data
             return datasets.Dataset.from_dict(concatenated_dataset)
 
-        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 512)
+        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 5)
     return tokenized_dataset
 
 
