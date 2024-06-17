@@ -588,7 +588,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print("remove_columns")
     print(column_names)
     tokenized_dataset = dataset.map(
-        preprocess_slimorca_function,
+        preprocess_slim_orca_function,
         load_from_cache_file=False,
         batched=True,
         remove_columns=column_names,
