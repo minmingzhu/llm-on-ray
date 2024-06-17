@@ -199,11 +199,12 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     group = config["Dataset"].get("group", True)
     block_size = config["Dataset"].get("block_size", 512)
     tokenizer.pad_token = tokenizer.eos_token
-    use_dpo = config["Training"]["finetuning_model"].get("dpo", False)
-    if use_dpo:
-        from llm_on_ray.finetune.dpo_funetuing import DPOIntelOrcaProcesser
+    if config["Training"]["finetuning_model"] is not None:
+        use_dpo = config["Training"]["finetuning_model"].get("dpo", False)
+        if use_dpo:
+            from llm_on_ray.finetune.dpo_funetuing import DPOIntelOrcaProcesser
 
-        return DPOIntelOrcaProcesser.tokenize_dataset(config, tokenizer, dataset)
+            return DPOIntelOrcaProcesser.tokenize_dataset(config, tokenizer, dataset)
 
     if isinstance(dataset, datasets.Dataset):
         column_names = dataset.column_names
@@ -308,7 +309,9 @@ def load_model(config: Dict):
 
 def get_trainer(config: Dict, model, tokenizer, tokenized_dataset, data_collator):
     device = config["Training"]["device"]
-    use_dpo = config["Training"]["FinetuningModel"].get("dpo", False)
+    use_dpo = False
+    if config["Training"]["finetuning_model"] is not None:
+        use_dpo = config["Training"]["FinetuningModel"].get("dpo", False)
     if device in ["cpu", "gpu"]:
         from transformers import Trainer, TrainingArguments
 
@@ -453,8 +456,12 @@ def main(external_config=None):
         if config["General"]["gpt_base_model"] is True:
             runtime_env["pip"] = ["transformers==4.26.0"]
 
-        if config["Training"]["finetuning_model"]["dpo"] and config["General"]["gpt_base_model"]:
-            raise ValueError("DPO is not supported for GPT models")
+        if config["Training"]["finetuning_model"] is not None:
+            if (
+                config["Training"]["finetuning_model"]["dpo"]
+                and config["General"]["gpt_base_model"]
+            ):
+                raise ValueError("DPO is not supported for GPT models")
 
         if device == "gpu":
             num_cpus = (
