@@ -291,7 +291,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         prompts = {}
         prompts["prompt_sources"] = []
         prompts["prompt_targets"] = []
-
+        print(examples)
         for conv in examples:
             conv = conv["conversations"]
             # system
@@ -314,7 +314,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 prompts["prompt_targets"].append(response)
 
                 prompt += response + "\n"
-
+        print(prompts)
         return prompts
 
     def prompt_SlimOrca(examples, tokenizer):
@@ -419,6 +419,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         return sequences
 
     def preprocess_slim_orca_function(examples):
+        print("preprocess_slim_orca_function")
         max_seq_length = 512
         max_source_length = 384
         assistant = "### Response:\n"
@@ -431,7 +432,9 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         )
 
         instructions = [q.strip() for q in examples["prompt_sources"]]
+        print(instructions)
         responses = [q.strip() for q in examples["prompt_targets"]]
+        print(responses)
 
         examples["input_ids"] = []
         examples["labels"] = []
@@ -587,6 +590,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     column_names = list(dataset["train"].features)
     print("remove_columns")
     print(column_names)
+    print(dataset)
     tokenized_dataset = dataset.map(
         preprocess_slim_orca_function,
         load_from_cache_file=False,
