@@ -73,6 +73,7 @@ class Dataset(BaseModel):
     shuffle: bool = False
     pad_max: bool = False
     max_prompt_length: int = 512
+    torch_dtype: str = "bfloat16"
 
 
 class RayResourceConfig(BaseModel):
