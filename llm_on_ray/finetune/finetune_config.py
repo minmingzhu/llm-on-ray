@@ -72,7 +72,7 @@ class Dataset(BaseModel):
     block_size: int = 512
     shuffle: bool = False
     pad_max: bool = False
-    max_prompt_length: int = 512
+    max_source_length: int = 512
     torch_dtype: str = "bfloat16"
 
 

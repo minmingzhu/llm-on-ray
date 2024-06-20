@@ -29,6 +29,9 @@ The following are the parameters supported in the finetuning workflow.
 |group|True|Whether to concatenate the sentence for more efficient training|
 |block_size|512|The block size of concatenated sentence|
 |shuffle|False|Whether shuffle the data at every epoch|
+|pad_max|False|Whether to pad the data to the max length of the batch|
+|max_source_length|512|Maximum source sequence length. Sequences will be right padded|
+|torch_dtype|bfloat16|Override the default `torch.dtype` and load the model under this dtype|
 
 
 ## Training Parameters
