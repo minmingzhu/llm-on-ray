@@ -85,7 +85,6 @@ class RayResourceConfig(BaseModel):
 class FinetuningModel(BaseModel):
     dpo: bool = False
     ppo: bool = False
-    sft: bool = False
 
 
 class Training(BaseModel):
