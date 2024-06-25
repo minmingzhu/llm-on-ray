@@ -360,7 +360,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
     print(dataset)
 
     def tokenize_function(examples):
-        max_seq_length = 512
+        max_seq_length = 2560
         mask_input = False
         mask_response = True
         keys = list(examples.data.keys())
@@ -420,8 +420,8 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
 
     def preprocess_slim_orca_function(examples):
         print("preprocess_slim_orca_function")
-        max_seq_length = 512
-        max_source_length = 384
+        max_seq_length = 2560
+        max_source_length = 1024
         assistant = "### Response:\n"
         end = tokenizer.eos_token
         assistant_tokens = tokenizer.tokenize(assistant)
@@ -615,7 +615,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 concatenated_dataset[column] = reshaped_data
             return datasets.Dataset.from_dict(concatenated_dataset)
 
-        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 5)
+        tokenized_dataset["train"] = concatenate_data(tokenized_dataset["train"], 2560)
     return tokenized_dataset
 
 
