@@ -291,7 +291,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         prompts = {}
         prompts["prompt_sources"] = []
         prompts["prompt_targets"] = []
-        print(examples)
         for conv in examples:
             conv = conv["conversations"]
             # system
@@ -314,7 +313,6 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
                 prompts["prompt_targets"].append(response)
 
                 prompt += response + "\n"
-        print(prompts)
         return prompts
 
     def prompt_SlimOrca(examples, tokenizer):
@@ -432,9 +430,7 @@ def tokenize_dataset(config: Dict, tokenizer, dataset):
         )
 
         instructions = [q.strip() for q in examples["prompt_sources"]]
-        print(instructions)
         responses = [q.strip() for q in examples["prompt_targets"]]
-        print(responses)
 
         examples["input_ids"] = []
         examples["labels"] = []
